@@ -576,12 +576,19 @@ function generateCurve(type, Ca, Va_mL, Cb, Ka_val, KbTitrant_val){
 
   // Buffer region: from ~10% to ~90% of equivalence for weak acid/base titrations
   const hasBuffer = (type==='wa_sb'||type==='wb_sa');
+  let bufferPHmin = null, bufferPHmax = null;
   if(hasBuffer){
     bufferStart = Veq_mL * 0.1;
     bufferEnd = Veq_mL * 0.9;
+    // Find pH range within the buffer region
+    const bufferPts = points.filter(p => p.x >= bufferStart && p.x <= bufferEnd);
+    if(bufferPts.length > 0){
+      bufferPHmin = Math.min(...bufferPts.map(p=>p.y));
+      bufferPHmax = Math.max(...bufferPts.map(p=>p.y));
+    }
   }
 
-  return { points, Veq_mL, eqPH, halfEqV: hasHalfEq?halfEqV:null, halfEqPH, bufferStart, bufferEnd, hasBuffer, hasHalfEq };
+  return { points, Veq_mL, eqPH, halfEqV: hasHalfEq?halfEqV:null, halfEqPH, bufferStart, bufferEnd, bufferPHmin, bufferPHmax, hasBuffer, hasHalfEq };
 }
 
 // ═══════════════════════════════════════════════════
@@ -599,7 +606,7 @@ function renderChart(data, type){
 
   if(chartInstance) chartInstance.destroy();
 
-  const {points, Veq_mL, eqPH, halfEqV, halfEqPH, bufferStart, bufferEnd, hasBuffer, hasHalfEq} = data;
+  const {points, Veq_mL, eqPH, halfEqV, halfEqPH, bufferStart, bufferEnd, bufferPHmin, bufferPHmax, hasBuffer, hasHalfEq} = data;
 
   const annotations = {};
 
@@ -612,51 +619,59 @@ function renderChart(data, type){
       color:'#94a3b8',font:{size:12,family:'JetBrains Mono',weight:'500'}}
   };
 
-  // Equivalence point
-  annotations.eqLine = {
-    type:'line',drawTime:'beforeDatasetsDraw',
-    xMin:Veq_mL,xMax:Veq_mL,
-    borderColor:'#22d3ee80',borderWidth:2,borderDash:[5,3],
-    label:{display:true,content:`Eq. Point: ${Veq_mL.toFixed(2)} mL`,
-      position:'start',yAdjust:12,
-      backgroundColor:'#0e3a4a',color:'#67e8f9',
-      font:{size:12,family:'JetBrains Mono',weight:'600'},padding:{x:8,y:5}}
-  };
+  // Buffer region — box hugs the curve with padding
+  if(hasBuffer && bufferStart!=null && bufferPHmin!=null){
+    const pad = 0.5;
+    annotations.bufferBox = {
+      type:'box',drawTime:'beforeDatasetsDraw',
+      xMin:bufferStart,xMax:bufferEnd,
+      yMin:bufferPHmin - pad,yMax:bufferPHmax + pad,
+      backgroundColor:'#34d39922',borderColor:'#34d39980',borderWidth:2,borderDash:[4,3],
+      label:{display:true,content:'Buffer Region',
+        position:{x:'center',y:'center'},
+        backgroundColor:'#064e3b',color:'#6ee7b7',
+        font:{size:13,family:'JetBrains Mono',weight:'700'},padding:{x:8,y:4}}
+    };
+  }
+
+  // Equivalence point — label beside the point
+  const eqLabelOnRight = Veq_mL < points[points.length-1].x * 0.7;
   annotations.eqPoint = {
     type:'point',
     xValue:Veq_mL,yValue:eqPH,
     backgroundColor:'#22d3ee',borderColor:'#fff',radius:8,
     borderWidth:2,
   };
+  annotations.eqLabel = {
+    type:'label',
+    xValue:Veq_mL,yValue:eqPH,
+    xAdjust: eqLabelOnRight ? 90 : -90,
+    yAdjust: -2,
+    content:[`Eq. Point`,`${Veq_mL.toFixed(2)} mL, pH ${eqPH.toFixed(2)}`],
+    backgroundColor:'#0e3a4aee',color:'#67e8f9',
+    font:{size:12,family:'JetBrains Mono',weight:'600'},
+    padding:{x:8,y:5},
+    borderRadius:6,
+  };
 
-  // Half-equivalence point
+  // Half-equivalence point — label beside the point
   if(hasHalfEq && halfEqV != null){
-    annotations.halfLine = {
-      type:'line',drawTime:'beforeDatasetsDraw',
-      xMin:halfEqV,xMax:halfEqV,
-      borderColor:'#facc1580',borderWidth:2,borderDash:[5,3],
-      label:{display:true,content:`½ Eq.: ${halfEqV.toFixed(2)} mL`,
-        position:'end',yAdjust:-12,
-        backgroundColor:'#422d08',color:'#fde68a',
-        font:{size:12,family:'JetBrains Mono',weight:'600'},padding:{x:8,y:5}}
-    };
     annotations.halfPoint = {
       type:'point',
       xValue:halfEqV,yValue:halfEqPH,
       backgroundColor:'#facc15',borderColor:'#fff',radius:8,
       borderWidth:2,
     };
-  }
-
-  // Buffer region
-  if(hasBuffer && bufferStart!=null){
-    annotations.bufferBox = {
-      type:'box',drawTime:'beforeDatasetsDraw',
-      xMin:bufferStart,xMax:bufferEnd,
-      backgroundColor:'#34d39912',borderColor:'#34d39940',borderWidth:1,
-      label:{display:true,content:'Buffer Region',position:{x:'center',y:'start'},
-        backgroundColor:'transparent',color:'#6ee7b7',
-        font:{size:12,family:'JetBrains Mono',weight:'600'}}
+    annotations.halfLabel = {
+      type:'label',
+      xValue:halfEqV,yValue:halfEqPH,
+      xAdjust: -100,
+      yAdjust: -25,
+      content:[`½ Eq. Point`,`${halfEqV.toFixed(2)} mL, pH ${halfEqPH.toFixed(2)}`],
+      backgroundColor:'#422d08ee',color:'#fde68a',
+      font:{size:12,family:'JetBrains Mono',weight:'600'},
+      padding:{x:8,y:5},
+      borderRadius:6,
     };
   }
 
