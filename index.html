@@ -1,897 +1,282 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Acid-Base Titration Simulator</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  :root{
-    --bg:#f0f4f8;--surface:#ffffff;--surface2:#f7f9fc;--surface3:#edf2f7;
-    --border:#d0d8e4;--border-glow:#3b82f640;
-    --text:#1e293b;--text-dim:#475569;--text-muted:#64748b;
-    --accent:#2563eb;--accent-glow:#2563eb30;
-    --acid:#dc2626;--base:#7c3aed;
-    --equiv:#0891b2;--half:#b45309;--buffer:#059669;
-    --radius:10px;--radius-lg:14px;
-  }
-  html{font-size:15px}
-  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
-
-  header{text-align:center;padding:1.8rem 1rem 1.2rem;border-bottom:1px solid var(--border);background:#fff}
-  header h1{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:1.6rem;letter-spacing:-.02em;background:linear-gradient(135deg,var(--acid),var(--accent),var(--base));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-  header p{color:var(--text-dim);margin-top:.3rem;font-size:.88rem;font-weight:400}
-
-  .app{display:grid;grid-template-columns:340px 1fr 360px;min-height:calc(100vh - 90px)}
-  @media(max-width:1200px){.app{grid-template-columns:320px 1fr}}
-  @media(max-width:800px){.app{grid-template-columns:1fr}}
-
-  .sidebar{background:#fff;border-right:1px solid var(--border);padding:1.3rem;overflow-y:auto;display:flex;flex-direction:column;gap:1.1rem}
-  .card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.1rem}
-  .card-title{font-family:'JetBrains Mono',monospace;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem}
-  .card-title .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-  .card-title .dot.acid{background:var(--acid)}
-  .card-title .dot.base{background:var(--base)}
-  .card-title .dot.config{background:var(--accent)}
-
-  label{display:block;font-size:.78rem;color:var(--text-dim);margin-bottom:.3rem;font-weight:500}
-  select,input[type=number]{width:100%;padding:.5rem .65rem;font-size:.88rem;font-family:'DM Sans',sans-serif;background:#fff;border:1px solid var(--border);border-radius:var(--radius);color:var(--text);outline:none;transition:border .2s,box-shadow .2s;-moz-appearance:textfield}
-  select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2364748b'%3E%3Cpath d='M6 8.5L1 3.5h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .7rem center;padding-right:2rem}
-  input::-webkit-inner-spin-button{-webkit-appearance:none}
-  select:focus,input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
-
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
-  .field{margin-bottom:.6rem}.field:last-child{margin-bottom:0}
-  .unit{font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--text-muted);margin-top:.18rem}
-  .req{color:var(--acid);font-weight:700;margin-left:.15rem}
-  .req-note{font-size:.7rem;color:var(--text-muted);margin-top:.15rem;display:flex;align-items:center;gap:.3rem}
-  .req-note .req{margin-left:0}
-
-  .btn{width:100%;padding:.7rem 1rem;font-size:.9rem;font-weight:600;font-family:'DM Sans',sans-serif;border:none;border-radius:var(--radius);cursor:pointer;transition:all .2s}
-  .btn-primary{background:var(--accent);color:#fff;box-shadow:0 2px 8px var(--accent-glow)}
-  .btn-primary:hover{background:#1d4ed8;transform:translateY(-1px);box-shadow:0 4px 14px var(--accent-glow)}
-  .btn-primary:active{transform:translateY(0)}
-
-  .info-box{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:.7rem;margin-top:.4rem}
-  .info-row{display:flex;justify-content:space-between;align-items:center;padding:.22rem 0;font-size:.78rem}
-  .info-row .label{color:var(--text-dim)}
-  .info-row .value{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:.76rem}
-  .info-row .value.equiv-c{color:var(--equiv)}
-  .info-row .value.half-c{color:var(--half)}
-  .info-row .value.buffer-c{color:var(--buffer)}
-  .ka-note{font-size:.72rem;color:var(--text-muted);font-style:italic;margin-top:.25rem}
-
-  .main{padding:1.2rem;display:flex;flex-direction:column;gap:1rem;background:var(--bg)}
-  .chart-wrap{flex:1;background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.2rem;min-height:420px;position:relative;box-shadow:0 1px 4px #0001}
-  .chart-wrap canvas{width:100%!important;height:100%!important}
-
-  .legend{display:flex;flex-wrap:wrap;gap:.6rem 1.2rem;padding:.5rem .8rem;background:#fff;border:1px solid var(--border);border-radius:var(--radius)}
-  .legend-item{display:flex;align-items:center;gap:.35rem;font-size:.74rem;color:var(--text-dim);font-weight:500}
-  .legend-swatch{width:14px;height:4px;border-radius:2px}
-  .legend-dot{width:9px;height:9px;border-radius:50%}
-  .legend-region{width:14px;height:10px;border-radius:2px;opacity:.6}
-
-  .placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);text-align:center;gap:.7rem}
-  .placeholder svg{opacity:.3}
-  .placeholder p{font-size:.88rem;max-width:260px;line-height:1.5}
-
-  .calc-panel{background:#fff;border-left:1px solid var(--border);padding:1.3rem;overflow-y:auto}
-  @media(max-width:1200px){.calc-panel{border-left:none;border-top:1px solid var(--border);grid-column:1/-1}}
-  .calc-panel h2{font-family:'JetBrains Mono',monospace;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);margin-bottom:.8rem;display:flex;align-items:center;gap:.5rem}
-  .calc-panel h2 .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0}
-  .calc-placeholder{color:var(--text-muted);font-size:.85rem;text-align:center;padding:2rem .5rem;line-height:1.5}
-
-  /* Clickable summary cards */
-  .calc-card{
-    padding:.75rem .9rem;border-radius:var(--radius);border:1px solid var(--border);
-    margin-bottom:.6rem;cursor:pointer;transition:all .15s;
-    display:flex;align-items:center;gap:.7rem;
-  }
-  .calc-card:hover{border-color:var(--accent);box-shadow:0 2px 8px #2563eb15;transform:translateY(-1px)}
-  .calc-card .cc-color{width:4px;height:36px;border-radius:3px;flex-shrink:0}
-  .calc-card .cc-color.initial{background:var(--accent)}
-  .calc-card .cc-color.half{background:var(--half)}
-  .calc-card .cc-color.equiv{background:var(--equiv)}
-  .calc-card .cc-color.buffer{background:var(--buffer)}
-  .calc-card .cc-color.excess{background:var(--base)}
-  .calc-card .cc-body{flex:1;min-width:0}
-  .calc-card .cc-title{font-size:.8rem;font-weight:700;color:var(--text);margin-bottom:.15rem}
-  .calc-card .cc-result{font-family:'JetBrains Mono',monospace;font-size:.74rem;font-weight:600}
-  .calc-card .cc-result.accent-c{color:var(--accent)}
-  .calc-card .cc-result.equiv-c{color:var(--equiv)}
-  .calc-card .cc-result.half-c{color:var(--half)}
-  .calc-card .cc-result.buffer-c{color:var(--buffer)}
-  .calc-card .cc-result.base-c{color:var(--base)}
-  .calc-card .cc-arrow{color:var(--text-muted);font-size:1rem;flex-shrink:0;transition:transform .15s}
-  .calc-card:hover .cc-arrow{transform:translateX(2px);color:var(--accent)}
-
-  /* Modal overlay */
-  .calc-modal-overlay{
-    position:fixed;inset:0;background:#0008;z-index:1000;
-    display:flex;align-items:center;justify-content:center;padding:1.5rem;
-    opacity:0;pointer-events:none;transition:opacity .2s;
-  }
-  .calc-modal-overlay.open{opacity:1;pointer-events:auto}
-  .calc-modal{
-    background:#fff;border-radius:16px;width:100%;max-width:620px;
-    max-height:85vh;overflow-y:auto;
-    box-shadow:0 20px 60px #0003;
-    transform:translateY(12px);transition:transform .25s;
-  }
-  .calc-modal-overlay.open .calc-modal{transform:translateY(0)}
-
-  .calc-modal-header{
-    padding:1.2rem 1.5rem;border-bottom:1px solid var(--border);
-    display:flex;align-items:center;justify-content:space-between;
-    position:sticky;top:0;background:#fff;z-index:1;border-radius:16px 16px 0 0;
-  }
-  .calc-modal-header h3{font-size:1rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:.6rem}
-  .calc-modal-header h3 .mh-bar{width:4px;height:20px;border-radius:3px}
-  .calc-modal-close{
-    width:32px;height:32px;border-radius:8px;border:1px solid var(--border);
-    background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;
-    color:var(--text-muted);font-size:1.1rem;transition:all .15s;
-  }
-  .calc-modal-close:hover{background:var(--surface3);color:var(--text)}
-
-  .calc-modal-body{padding:1.5rem}
-  .calc-modal-body .cm-step{
-    font-size:.88rem;color:var(--text-dim);line-height:1.6;margin-bottom:.6rem;
-  }
-  .calc-modal-body .cm-formula{
-    font-family:'JetBrains Mono',monospace;font-size:.82rem;
-    background:var(--surface2);border:1px solid var(--border);border-radius:10px;
-    padding:.9rem 1.1rem;margin:.6rem 0 1rem;color:var(--text);
-    line-height:2;white-space:pre-wrap;
-  }
-  .calc-modal-body .cm-result{
-    font-family:'JetBrains Mono',monospace;font-size:.95rem;font-weight:700;
-    padding:.7rem 1rem;border-radius:var(--radius);margin-top:.8rem;
-  }
-  .calc-modal-body .cm-result.accent-c{color:var(--accent);background:#2563eb08;border:1px solid #2563eb25}
-  .calc-modal-body .cm-result.equiv-c{color:var(--equiv);background:#0891b208;border:1px solid #0891b225}
-  .calc-modal-body .cm-result.half-c{color:var(--half);background:#b4530908;border:1px solid #b4530925}
-  .calc-modal-body .cm-result.buffer-c{color:var(--buffer);background:#05966908;border:1px solid #05966925}
-  .calc-modal-body .cm-result.base-c{color:var(--base);background:#7c3aed08;border:1px solid #7c3aed25}
-  .calc-modal-body .cm-divider{height:1px;background:var(--border);margin:1.2rem 0}
-
-  @media(max-width:800px){.sidebar{border-right:none;border-bottom:1px solid var(--border)}.app{min-height:auto}.chart-wrap{min-height:340px}}
-</style>
-</head>
-<body>
-
-<header>
-  <h1>Acid–Base Titration Simulator</h1>
-  <p>Configure your titration, visualize the curve, and see the calculations</p>
-</header>
-
-<div class="app">
-  <aside class="sidebar">
-    <div class="card">
-      <div class="card-title"><span class="dot config"></span>Titration Setup</div>
-      <div class="field"><label>Titration Type</label>
-        <select id="titType">
-          <option value="wa_sb">Weak Acid titrated with Strong Base</option>
-          <option value="sa_sb">Strong Acid titrated with Strong Base</option>
-          <option value="wb_sa">Weak Base titrated with Strong Acid</option>
-          <option value="sa_wb">Strong Acid titrated with Weak Base</option>
-          <option value="sb_wa">Strong Base titrated with Weak Acid</option>
-          <option value="sb_sa">Strong Base titrated with Strong Acid</option>
-        </select>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title"><span class="dot acid"></span>Analyte (in flask)</div>
-      <div class="field"><label>Substance</label><select id="analyteSelect"><option value="custom">— Custom —</option></select></div>
-      <div class="field" id="kaField">
-        <label id="kaLabel">Ka<span class="req">*</span></label>
-        <input type="number" id="kaInput" step="any" min="0" value="1.8e-5" placeholder="e.g. 1.8e-5">
-        <div class="unit" id="kaUnit">mol/L</div>
-        <div class="ka-note" id="kaNote">pKa = <span id="pkaDisplay">4.74</span></div>
-      </div>
-      <div class="row">
-        <div class="field"><label>Concentration<span class="req">*</span></label><input type="number" id="analyteC" step="any" min="0.0001" value="0.100" placeholder="0.100"><div class="unit">mol/L (M)</div></div>
-        <div class="field"><label>Volume<span class="req">*</span></label><input type="number" id="analyteV" step="any" min="0.1" value="25.0" placeholder="25.0"><div class="unit">mL</div></div>
-      </div>
-      <div class="field">
-        <label>Equiv. H⁺ or OH⁻ per mole<span class="req">*</span></label>
-        <input type="number" id="analyteN" step="1" min="1" max="3" value="1" placeholder="1">
-        <div class="unit">e.g. 1 for HCl, 2 for H₂SO₄</div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title"><span class="dot base"></span>Titrant (in buret)</div>
-      <div class="field"><label>Substance</label><select id="titrantSelect"><option value="custom">— Custom —</option></select></div>
-      <div class="field" id="kbTitrantField" style="display:none">
-        <label id="kbTitrantLabel">Kb (titrant)<span class="req">*</span></label>
-        <input type="number" id="kbTitrantInput" step="any" min="0" value="1.8e-5" placeholder="e.g. 1.8e-5">
-        <div class="unit">mol/L</div>
-        <div class="ka-note">pKb = <span id="pkbTitrantDisplay">4.74</span></div>
-      </div>
-      <div class="field"><label>Concentration<span class="req">*</span></label><input type="number" id="titrantC" step="any" min="0.0001" value="0.100" placeholder="0.100"><div class="unit">mol/L (M)</div></div>
-      <div class="field">
-        <label>Equiv. H⁺ or OH⁻ per mole<span class="req">*</span></label>
-        <input type="number" id="titrantN" step="1" min="1" max="3" value="1" placeholder="1">
-        <div class="unit">e.g. 1 for NaOH, 2 for Ba(OH)₂</div>
-      </div>
-    </div>
-    <div class="req-note"><span class="req">*</span> Required to generate the titration curve</div>
-    <button class="btn btn-primary" id="runBtn">Generate Titration Curve</button>
-    <div class="card" id="resultsCard" style="display:none">
-      <div class="card-title"><span class="dot config"></span>Key Points</div>
-      <div class="info-box" id="resultsBox"></div>
-    </div>
-  </aside>
-
-  <main class="main">
-    <div class="chart-wrap">
-      <div class="placeholder" id="placeholder">
-        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M9 3h6v6l3 8H6l3-8V3z"/><path d="M6 17v2a2 2 0 002 2h8a2 2 0 002-2v-2"/><line x1="10" y1="3" x2="14" y2="3"/></svg>
-        <p>Configure parameters and click <strong>Generate Titration Curve</strong></p>
-      </div>
-      <canvas id="chart" style="display:none"></canvas>
-    </div>
-    <div class="legend" id="legend" style="display:none">
-      <div class="legend-item"><div class="legend-swatch" style="background:var(--accent)"></div>Titration Curve</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--equiv)"></div>Equivalence Point</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--half)"></div>½ Equivalence Point</div>
-      <div class="legend-item"><div class="legend-region" style="background:var(--buffer)"></div>Buffer Region</div>
-      <div class="legend-item"><div class="legend-swatch" style="background:var(--text-muted);opacity:.35"></div>pH 7 Reference</div>
-    </div>
-  </main>
-
-  <aside class="calc-panel">
-    <h2><span class="dot"></span>Calculations &amp; Formulas</h2>
-    <div class="calc-placeholder" id="calcPlaceholder">Generate a titration curve to see step-by-step calculations with formulas for each key point.</div>
-    <div id="calcContent" style="display:none"></div>
-  </aside>
-</div>
-
-<!-- Modal Overlay -->
-<div class="calc-modal-overlay" id="calcOverlay">
-  <div class="calc-modal">
-    <div class="calc-modal-header">
-      <h3 id="modalTitle"><span class="mh-bar" id="modalBar"></span><span id="modalTitleText"></span></h3>
-      <button class="calc-modal-close" id="modalClose">✕</button>
-    </div>
-    <div class="calc-modal-body" id="modalBody"></div>
-  </div>
-</div>
-
-<script>
-const ACIDS=[
-  {name:'Acetic Acid (CH₃COOH)',ka:1.8e-5,strong:false,n:1},
-  {name:'Hydrofluoric Acid (HF)',ka:6.8e-4,strong:false,n:1},
-  {name:'Formic Acid (HCOOH)',ka:1.77e-4,strong:false,n:1},
-  {name:'Benzoic Acid (C₆H₅COOH)',ka:6.3e-5,strong:false,n:1},
-  {name:'Nitrous Acid (HNO₂)',ka:4.5e-4,strong:false,n:1},
-  {name:'Hypochlorous Acid (HOCl)',ka:3.0e-8,strong:false,n:1},
-  {name:'Carbonic Acid (H₂CO₃)',ka:4.3e-7,strong:false,n:1},
-  {name:'Phosphoric Acid (H₃PO₄) – Ka₁',ka:7.5e-3,strong:false,n:1},
-  {name:'Hydrochloric Acid (HCl)',ka:null,strong:true,n:1},
-  {name:'Nitric Acid (HNO₃)',ka:null,strong:true,n:1},
-  {name:'Sulfuric Acid (H₂SO₄)',ka:null,strong:true,n:2},
-  {name:'Hydrobromic Acid (HBr)',ka:null,strong:true,n:1},
-  {name:'Perchloric Acid (HClO₄)',ka:null,strong:true,n:1},
-  {name:'Hydroiodic Acid (HI)',ka:null,strong:true,n:1},
-];
-const BASES=[
-  {name:'Ammonia (NH₃)',kb:1.8e-5,strong:false,n:1},
-  {name:'Methylamine (CH₃NH₂)',kb:4.4e-4,strong:false,n:1},
-  {name:'Pyridine (C₅H₅N)',kb:1.7e-9,strong:false,n:1},
-  {name:'Ethylamine (C₂H₅NH₂)',kb:5.6e-4,strong:false,n:1},
-  {name:'Aniline (C₆H₅NH₂)',kb:4.3e-10,strong:false,n:1},
-  {name:'Sodium Hydroxide (NaOH)',kb:null,strong:true,n:1},
-  {name:'Potassium Hydroxide (KOH)',kb:null,strong:true,n:1},
-  {name:'Barium Hydroxide (Ba(OH)₂)',kb:null,strong:true,n:2},
-  {name:'Calcium Hydroxide (Ca(OH)₂)',kb:null,strong:true,n:2},
-  {name:'Lithium Hydroxide (LiOH)',kb:null,strong:true,n:1},
-];
-const Kw=1e-14;
-
-const titType=document.getElementById('titType');
-const analyteSel=document.getElementById('analyteSelect');
-const titrantSel=document.getElementById('titrantSelect');
-const kaField=document.getElementById('kaField');
-const kaInput=document.getElementById('kaInput');
-const kaLabel=document.getElementById('kaLabel');
-const kaNote=document.getElementById('kaNote');
-let pkaDisplay=document.getElementById('pkaDisplay');
-const kbTitrantField=document.getElementById('kbTitrantField');
-const kbTitrantInput=document.getElementById('kbTitrantInput');
-const kbTitrantLabel=document.getElementById('kbTitrantLabel');
-const pkbTitrantDisplay=document.getElementById('pkbTitrantDisplay');
-
-function populateDropdowns(){
-  const t=titType.value;let aL,tL;
-  if(t==='wa_sb'){aL=ACIDS.filter(a=>!a.strong);tL=BASES.filter(b=>b.strong)}
-  else if(t==='sa_sb'){aL=ACIDS.filter(a=>a.strong);tL=BASES.filter(b=>b.strong)}
-  else if(t==='wb_sa'){aL=BASES.filter(b=>!b.strong);tL=ACIDS.filter(a=>a.strong)}
-  else if(t==='sa_wb'){aL=ACIDS.filter(a=>a.strong);tL=BASES.filter(b=>!b.strong)}
-  else if(t==='sb_wa'){aL=BASES.filter(b=>b.strong);tL=ACIDS.filter(a=>!a.strong)}
-  else if(t==='sb_sa'){aL=BASES.filter(b=>b.strong);tL=ACIDS.filter(a=>a.strong)}
-  analyteSel.innerHTML='<option value="custom">— Custom —</option>';
-  aL.forEach((item,i)=>{const o=document.createElement('option');o.value=i;o.textContent=item.name;analyteSel.appendChild(o)});
-  titrantSel.innerHTML='<option value="custom">— Custom —</option>';
-  tL.forEach((item,i)=>{const o=document.createElement('option');o.value=i;o.textContent=item.name;titrantSel.appendChild(o)});
-  window._aL=aL;window._tL=tL;
-  kaField.style.display=(t==='wa_sb'||t==='wb_sa')?'block':'none';
-  if(t==='wb_sa'){kaLabel.innerHTML='Kb<span class="req">*</span>';kaNote.innerHTML='pKb = <span id="pkaDisplay">—</span>';pkaDisplay=document.getElementById('pkaDisplay')}
-  else{kaLabel.innerHTML='Ka<span class="req">*</span>';kaNote.innerHTML='pKa = <span id="pkaDisplay">—</span>';pkaDisplay=document.getElementById('pkaDisplay')}
-  kbTitrantField.style.display=(t==='sa_wb'||t==='sb_wa')?'block':'none';
-  if(t==='sb_wa')kbTitrantLabel.innerHTML='Ka (titrant)<span class="req">*</span>';
-  else kbTitrantLabel.innerHTML='Kb (titrant)<span class="req">*</span>';
-  updateKaDisplay();updateKbTitrantDisplay();
-}
-function updateKaDisplay(){const v=parseFloat(kaInput.value);const d=document.getElementById('pkaDisplay');if(d)d.textContent=isNaN(v)||v<=0?'—':(-Math.log10(v)).toFixed(2)}
-function updateKbTitrantDisplay(){const v=parseFloat(kbTitrantInput.value);pkbTitrantDisplay.textContent=isNaN(v)||v<=0?'—':(-Math.log10(v)).toFixed(2)}
-titType.addEventListener('change',populateDropdowns);
-kaInput.addEventListener('input',updateKaDisplay);
-kbTitrantInput.addEventListener('input',updateKbTitrantDisplay);
-analyteSel.addEventListener('change',()=>{const i=analyteSel.value;if(i==='custom')return;const it=window._aL[parseInt(i)];if(it.ka!=null){kaInput.value=it.ka;updateKaDisplay()}if(it.kb!=null){kaInput.value=it.kb;updateKaDisplay()}document.getElementById('analyteN').value=it.n||1});
-titrantSel.addEventListener('change',()=>{const i=titrantSel.value;if(i==='custom')return;const it=window._tL[parseInt(i)];if(it.kb!=null){kbTitrantInput.value=it.kb;updateKbTitrantDisplay()}if(it.ka!=null){kbTitrantInput.value=it.ka;updateKbTitrantDisplay()}document.getElementById('titrantN').value=it.n||1});
-populateDropdowns();
-
-// Chemistry
-function clampPH(p){return Math.max(0,Math.min(14,p))}
-function posRoot(a,b,c){const d=b*b-4*a*c;if(d<0)return null;const r1=(-b+Math.sqrt(d))/(2*a);const r2=(-b-Math.sqrt(d))/(2*a);return r1>0?r1:(r2>0?r2:null)}
-function calcPH_weakAcid(C,K){const x=posRoot(1,K,-K*C);if(!x||x<=0)return 7;return clampPH(-Math.log10(x))}
-function calcPH_weakBase(C,K){const x=posRoot(1,K,-K*C);if(!x||x<=0)return 7;return clampPH(14+Math.log10(x))}
-
-function generateCurve(type,Ca,Va_mL,Cb,Ka_val,KbT,nA_factor,nT_factor){
-  // nA_factor = equiv H⁺ or OH⁻ per mole of analyte
-  // nT_factor = equiv H⁺ or OH⁻ per mole of titrant
-  const Va=Va_mL/1000;
-  // Equivalents (mol of H⁺ or OH⁻)
-  const eqAnalyte=Ca*Va*nA_factor;
-  const Veq_mL=eqAnalyte/(Cb*nT_factor)*1000;
-
-  const maxV=Veq_mL*2;let vols=[];
-  for(let v=0;v<=maxV;v+=maxV/500)vols.push(v);
-  vols.push(Veq_mL,Veq_mL/2);vols.sort((a,b)=>a-b);
-  vols=[...new Set(vols.map(v=>Math.round(v*1e3)/1e3))];
-  const pts=[];
-  for(const Vm of vols){
-    const Vt=Vm/1000;
-    const eqTitrant=Cb*Vt*nT_factor;  // equivalents of titrant added
-    const totalV=Va+Vt;let pH;
-    if(type==='wa_sb'){const K=Ka_val;if(eqTitrant<eqAnalyte-1e-12){const nAL=eqAnalyte-eqTitrant,nCB=eqTitrant;pH=nCB<1e-15?calcPH_weakAcid(nAL/totalV,K):-Math.log10(K)+Math.log10(nCB/nAL)}else if(Math.abs(eqTitrant-eqAnalyte)<1e-10){pH=calcPH_weakBase(eqAnalyte/totalV,Kw/K)}else{pH=14+Math.log10((eqTitrant-eqAnalyte)/totalV)}}
-    else if(type==='sa_sb'){if(eqTitrant<eqAnalyte-1e-12)pH=-Math.log10((eqAnalyte-eqTitrant)/totalV);else if(Math.abs(eqTitrant-eqAnalyte)<1e-10)pH=7;else pH=14+Math.log10((eqTitrant-eqAnalyte)/totalV)}
-    else if(type==='wb_sa'){const K=Ka_val;if(eqTitrant<eqAnalyte-1e-12){const nBL=eqAnalyte-eqTitrant,nCA=eqTitrant;if(nCA<1e-15)pH=calcPH_weakBase(nBL/totalV,K);else{const pOH=-Math.log10(K)+Math.log10(nCA/nBL);pH=14-pOH}}else if(Math.abs(eqTitrant-eqAnalyte)<1e-10){pH=calcPH_weakAcid(eqAnalyte/totalV,Kw/K)}else{pH=-Math.log10((eqTitrant-eqAnalyte)/totalV)}}
-    else if(type==='sa_wb'){const K=KbT;if(eqTitrant<eqAnalyte-1e-12)pH=-Math.log10((eqAnalyte-eqTitrant)/totalV);else if(Math.abs(eqTitrant-eqAnalyte)<1e-10)pH=calcPH_weakAcid(eqAnalyte/totalV,Kw/K);else pH=calcPH_weakBase((eqTitrant-eqAnalyte)/totalV,K)}
-    else if(type==='sb_wa'){const K=KbT;if(eqTitrant<eqAnalyte-1e-12)pH=14+Math.log10((eqAnalyte-eqTitrant)/totalV);else if(Math.abs(eqTitrant-eqAnalyte)<1e-10)pH=calcPH_weakBase(eqAnalyte/totalV,Kw/K);else pH=calcPH_weakAcid((eqTitrant-eqAnalyte)/totalV,K)}
-    else if(type==='sb_sa'){if(eqTitrant<eqAnalyte-1e-12)pH=14+Math.log10((eqAnalyte-eqTitrant)/totalV);else if(Math.abs(eqTitrant-eqAnalyte)<1e-10)pH=7;else pH=-Math.log10((eqTitrant-eqAnalyte)/totalV)}
-    pts.push({x:Vm,y:clampPH(pH)});
-  }
-  const eqPH=pts.find(p=>Math.abs(p.x-Veq_mL)<0.01)?.y||7;
-  const halfV=Veq_mL/2,hasHalf=(type==='wa_sb'||type==='wb_sa');
-  let halfPH=null;if(hasHalf)halfPH=pts.reduce((b,p)=>Math.abs(p.x-halfV)<Math.abs(b.x-halfV)?p:b,pts[0]).y;
-  const hasBuf=hasHalf;let bS=null,bE=null,bPHmin=null,bPHmax=null;
-  if(hasBuf){bS=Veq_mL*.1;bE=Veq_mL*.9;const bp=pts.filter(p=>p.x>=bS&&p.x<=bE);if(bp.length){bPHmin=Math.min(...bp.map(p=>p.y));bPHmax=Math.max(...bp.map(p=>p.y))}}
-  return{points:pts,Veq_mL,eqPH,halfEqV:hasHalf?halfV:null,halfEqPH:halfPH,bufferStart:bS,bufferEnd:bE,bufferPHmin:bPHmin,bufferPHmax:bPHmax,hasBuffer:hasBuf,hasHalfEq:hasHalf};
-}
-
-// Chart
-let chartInstance=null;
-function renderChart(data,type){
-  const canvas=document.getElementById('chart');
-  document.getElementById('placeholder').style.display='none';canvas.style.display='block';document.getElementById('legend').style.display='flex';
-  if(chartInstance)chartInstance.destroy();
-  const{points,Veq_mL,eqPH,halfEqV,halfEqPH,bufferStart,bufferEnd,bufferPHmin,bufferPHmax,hasBuffer,hasHalfEq}=data;
-  const ann={};
-
-  ann.ph7={type:'line',drawTime:'beforeDatasetsDraw',yMin:7,yMax:7,borderColor:'#94a3b850',borderWidth:1,borderDash:[6,4],
-    label:{display:true,content:'pH 7',position:'2%',backgroundColor:'transparent',color:'#94a3b8',font:{size:11,family:'JetBrains Mono',weight:'500'}}};
-
-  // Buffer box hugs curve, label at bottom-right
-  if(hasBuffer&&bufferStart!=null&&bufferPHmin!=null){
-    const pad=0.35;
-    ann.bufferBox={type:'box',drawTime:'beforeDatasetsDraw',xMin:bufferStart,xMax:bufferEnd,yMin:bufferPHmin-pad,yMax:bufferPHmax+pad,
-      backgroundColor:'#05966910',borderColor:'#059669',borderWidth:1.5,borderDash:[5,3],
-      label:{display:true,content:'Buffer Region',position:{x:'end',y:'end'},
-        backgroundColor:'#064e3bee',color:'#6ee7b7',font:{size:10,family:'JetBrains Mono',weight:'700'},padding:{x:6,y:3}}};
-  }
-
-  // Eq point + label beside it
-  ann.eqPt={type:'point',xValue:Veq_mL,yValue:eqPH,backgroundColor:'#0891b2',borderColor:'#fff',radius:7,borderWidth:2};
-  ann.eqLbl={type:'label',xValue:Veq_mL,yValue:eqPH,xAdjust:90,yAdjust:0,
-    content:[`Eq. Point`,`${Veq_mL.toFixed(2)} mL · pH ${eqPH.toFixed(2)}`],
-    backgroundColor:'#ecfeffee',color:'#0e7490',font:{size:10,family:'JetBrains Mono',weight:'600'},
-    padding:{x:7,y:4},borderRadius:6,borderColor:'#0891b240',borderWidth:1};
-
-  // Half eq point + label beside it
-  if(hasHalfEq&&halfEqV!=null){
-    ann.halfPt={type:'point',xValue:halfEqV,yValue:halfEqPH,backgroundColor:'#b45309',borderColor:'#fff',radius:7,borderWidth:2};
-    ann.halfLbl={type:'label',xValue:halfEqV,yValue:halfEqPH,xAdjust:-100,yAdjust:-20,
-      content:[`½ Eq. Point`,`${halfEqV.toFixed(2)} mL · pH ${halfEqPH.toFixed(2)}`],
-      backgroundColor:'#fffbebee',color:'#92400e',font:{size:10,family:'JetBrains Mono',weight:'600'},
-      padding:{x:7,y:4},borderRadius:6,borderColor:'#b4530930',borderWidth:1};
-  }
-
-  const maxX=points[points.length-1].x;
-  chartInstance=new Chart(canvas,{type:'scatter',
-    data:{datasets:[{data:points,showLine:true,borderColor:'#2563eb',backgroundColor:'#2563eb10',borderWidth:3,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:'#2563eb',tension:0.2,fill:false}]},
-    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},
-      plugins:{legend:{display:false},
-        tooltip:{backgroundColor:'#fff',titleColor:'#1e293b',bodyColor:'#475569',borderColor:'#d0d8e4',borderWidth:1,
-          titleFont:{family:'JetBrains Mono',size:12,weight:'600'},bodyFont:{family:'DM Sans',size:13},padding:10,
-          callbacks:{title:ctx=>ctx&&ctx[0]?`Volume: ${ctx[0].parsed.x.toFixed(2)} mL`:'',label:ctx=>ctx?`pH: ${ctx.parsed.y.toFixed(2)}`:''}},
-        annotation:{annotations:ann}},
-      scales:{
-        x:{title:{display:true,text:'Volume of Titrant Added (mL)',color:'#334155',font:{family:'DM Sans',size:14,weight:'600'}},min:0,max:Math.ceil(maxX/5)*5,grid:{color:'#e2e8f0'},ticks:{color:'#475569',font:{family:'JetBrains Mono',size:11},callback:v=>v.toFixed(1)},border:{color:'#cbd5e1'}},
-        y:{title:{display:true,text:'pH',color:'#334155',font:{family:'DM Sans',size:14,weight:'600'}},min:0,max:14,grid:{color:'#e2e8f0'},ticks:{color:'#475569',font:{family:'JetBrains Mono',size:11},stepSize:1},border:{color:'#cbd5e1'}}}
-    }});
-}
-
-// Results sidebar
-function showResults(data,type,Ka_val){
-  const card=document.getElementById('resultsCard'),box=document.getElementById('resultsBox');card.style.display='block';
-  let h='';
-  h+=`<div class="info-row"><span class="label">Eq. Volume</span><span class="value equiv-c">${data.Veq_mL.toFixed(2)} mL</span></div>`;
-  h+=`<div class="info-row"><span class="label">pH at Eq.</span><span class="value equiv-c">${data.eqPH.toFixed(2)}</span></div>`;
-  if(data.hasHalfEq&&data.halfEqV!=null){
-    h+=`<div class="info-row"><span class="label">½ Eq. Volume</span><span class="value half-c">${data.halfEqV.toFixed(2)} mL</span></div>`;
-    h+=`<div class="info-row"><span class="label">pH at ½ Eq.</span><span class="value half-c">${data.halfEqPH.toFixed(2)}</span></div>`;
-    if(type==='wa_sb')h+=`<div class="info-row"><span class="label">pKa</span><span class="value half-c">${(-Math.log10(Ka_val)).toFixed(2)}</span></div>`;
-    else if(type==='wb_sa')h+=`<div class="info-row"><span class="label">pKb</span><span class="value half-c">${(-Math.log10(Ka_val)).toFixed(2)}</span></div>`;
-  }
-  if(data.hasBuffer)h+=`<div class="info-row"><span class="label">Buffer Region</span><span class="value buffer-c">${data.bufferStart.toFixed(1)} – ${data.bufferEnd.toFixed(1)} mL</span></div>`;
-  const ip=data.points[0]?.y;if(ip!=null)h+=`<div class="info-row"><span class="label">Initial pH</span><span class="value">${ip.toFixed(2)}</span></div>`;
-  box.innerHTML=h;
-}
-
-// Calculations panel — clickable cards + modal popups
-function sci(n){return Math.abs(n)>=0.01&&Math.abs(n)<1e4?n.toPrecision(4):n.toExponential(3)}
-
-// Modal system
-const overlay=document.getElementById('calcOverlay');
-const modalBody=document.getElementById('modalBody');
-const modalTitleText=document.getElementById('modalTitleText');
-const modalBar=document.getElementById('modalBar');
-function openModal(title,color,html){
-  modalTitleText.textContent=title;
-  modalBar.style.background=color;
-  modalBody.innerHTML=html;
-  overlay.classList.add('open');
-  document.body.style.overflow='hidden';
-}
-function closeModal(){overlay.classList.remove('open');document.body.style.overflow=''}
-document.getElementById('modalClose').addEventListener('click',closeModal);
-overlay.addEventListener('click',e=>{if(e.target===overlay)closeModal()});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
-
-function makeCard(id,colorClass,title,resultText,resultClass){
-  return `<div class="calc-card" onclick="openCalcModal('${id}')">
-    <div class="cc-color ${colorClass}"></div>
-    <div class="cc-body">
-      <div class="cc-title">${title}</div>
-      <div class="cc-result ${resultClass}">${resultText}</div>
-    </div>
-    <div class="cc-arrow">›</div>
-  </div>`;
-}
-
-// Store modal content keyed by id
-window._calcModals={};
-
-function showCalcs(data,type,Ca,Va_mL,Cb,Ka_val,KbT,nAf,nTf){
-  document.getElementById('calcPlaceholder').style.display='none';
-  const el=document.getElementById('calcContent');el.style.display='block';
-  const Va=Va_mL/1000,eqA=Ca*Va*nAf,Veq=data.Veq_mL,VeqL=Veq/1000,hV=data.halfEqV;
-  const ip=data.points[0]?.y;
-  let cards='';
-  window._calcModals={};
-
-  // ─── 1. Equivalence Volume ───
-  cards+=makeCard('eqVol','initial','1. Equivalence Volume',`V(eq) = ${Veq.toFixed(2)} mL`,'accent-c');
-  const nNote_a = nAf>1 ? ` × ${nAf} (equiv/mol)` : '';
-  const nNote_t = nTf>1 ? ` × ${nTf} (equiv/mol)` : '';
-  window._calcModals.eqVol={title:'Equivalence Volume', color:'var(--accent)',
-    html:`
-    <div class="cm-step">Calculate equivalents of H⁺ or OH⁻ from the analyte:</div>
-    <div class="cm-formula">eq(analyte) = C × V${nAf>1?' × n':''}
-
-eq = ${Ca} mol/L  ×  ${Va_mL} mL  ×  (1 L / 1000 mL)${nNote_a}
-
-eq = ${sci(eqA)} mol equiv.</div>
-
-    <div class="cm-step">At the equivalence point, equivalents of titrant = equivalents of analyte.${nTf>1||nAf>1?' Account for stoichiometric factors:':''}</div>
-    <div class="cm-formula">C(analyte) × V(analyte)${nAf>1?' × '+nAf:''} = C(titrant) × V(eq)${nTf>1?' × '+nTf:''}
-
-${Ca} × ${Va_mL}${nAf>1?' × '+nAf:''}  =  ${Cb} × V(eq)${nTf>1?' × '+nTf:''}
-
-V(eq) = ${sci(eqA)}  ÷  ${nTf>1?sci(Cb*nTf):Cb}
-
-V(eq) = ${Veq.toFixed(2)} mL</div>
-
-    <div class="cm-result accent-c">V(eq) = ${Veq.toFixed(2)} mL</div>`};
-
-  // ─── 2. Initial pH ───
-  if(type==='wa_sb'){
-    cards+=makeCard('initpH','initial','2. Initial pH (ICE Table)',`pH = ${ip.toFixed(2)}`,'accent-c');
-    window._calcModals.initpH={title:'Initial pH — Weak Acid ICE Table',color:'var(--accent)',
-      html:`
-    <div class="cm-step">The weak acid partially dissociates in water:</div>
-    <div class="cm-formula">HA  ⇌  H⁺  +  A⁻</div>
-
-    <div class="cm-step">Set up the ICE table. Let x = [H⁺] at equilibrium:</div>
-    <div class="cm-formula">         HA       H⁺      A⁻
-I:     ${Ca}      0        0
-C:     −x       +x       +x
-E:    ${Ca}−x     x        x</div>
-
-    <div class="cm-step">Substitute into the Ka expression:</div>
-    <div class="cm-formula">Ka  =  [H⁺][A⁻] / [HA]
-
-${sci(Ka_val)}  =  x² / (${Ca} − x)</div>
-
-    <div class="cm-step">Rearrange into standard quadratic form:</div>
-    <div class="cm-formula">x²  +  (${sci(Ka_val)})x  −  (${sci(Ka_val)})(${Ca})  =  0
-
-Using the quadratic formula:
-x = [−b + √(b² − 4ac)] / 2a
-
-x  =  [H⁺]  =  ${sci(Math.pow(10,-ip))} M</div>
-
-    <div class="cm-step">Convert to pH:</div>
-    <div class="cm-formula">pH  =  −log₁₀([H⁺])
-
-pH  =  −log₁₀(${sci(Math.pow(10,-ip))})</div>
-
-    <div class="cm-result accent-c">Initial pH = ${ip.toFixed(2)}</div>`};
-  }else if(type==='wb_sa'){
-    cards+=makeCard('initpH','initial','2. Initial pH (ICE Table)',`pH = ${ip.toFixed(2)}`,'accent-c');
-    window._calcModals.initpH={title:'Initial pH — Weak Base ICE Table',color:'var(--accent)',
-      html:`
-    <div class="cm-step">The weak base reacts with water:</div>
-    <div class="cm-formula">B  +  H₂O  ⇌  BH⁺  +  OH⁻</div>
-
-    <div class="cm-step">ICE table (x = [OH⁻]):</div>
-    <div class="cm-formula">         B        BH⁺     OH⁻
-I:     ${Ca}      0        0
-C:     −x       +x       +x
-E:    ${Ca}−x     x        x</div>
-
-    <div class="cm-step">Substitute into Kb:</div>
-    <div class="cm-formula">Kb  =  x² / (${Ca} − x)
-
-${sci(Ka_val)}  =  x² / (${Ca} − x)</div>
-
-    <div class="cm-step">Solve the quadratic and convert:</div>
-    <div class="cm-formula">x  =  [OH⁻]
-
-pOH  =  −log₁₀(x)  =  ${(14-ip).toFixed(2)}
-
-pH  =  14 − pOH</div>
-
-    <div class="cm-result accent-c">Initial pH = ${ip.toFixed(2)}</div>`};
-  }else if(type==='sa_sb'||type==='sa_wb'){
-    cards+=makeCard('initpH','initial','2. Initial pH',`pH = ${ip.toFixed(2)}`,'accent-c');
-    window._calcModals.initpH={title:'Initial pH — Strong Acid',color:'var(--accent)',
-      html:`
-    <div class="cm-step">Strong acids dissociate completely:</div>
-    <div class="cm-formula">HA  →  H⁺  +  A⁻     (100% dissociation)
-
-[H⁺]  =  C(acid)  =  ${Ca} M
-
-pH  =  −log₁₀(${Ca})</div>
-
-    <div class="cm-result accent-c">Initial pH = ${ip.toFixed(2)}</div>`};
-  }else{
-    cards+=makeCard('initpH','initial','2. Initial pH',`pH = ${ip.toFixed(2)}`,'accent-c');
-    window._calcModals.initpH={title:'Initial pH — Strong Base',color:'var(--accent)',
-      html:`
-    <div class="cm-step">Strong bases dissociate completely:</div>
-    <div class="cm-formula">BOH  →  B⁺  +  OH⁻     (100% dissociation)
-
-[OH⁻]  =  C(base)  =  ${Ca} M
-
-pOH  =  −log₁₀(${Ca})  =  ${(-Math.log10(Ca)).toFixed(2)}
-
-pH  =  14 − pOH</div>
-
-    <div class="cm-result accent-c">Initial pH = ${ip.toFixed(2)}</div>`};
-  }
-
-  // ─── 3. Half-Equivalence ───
-  if(type==='wa_sb'&&hV!=null){
-    const pKa=(-Math.log10(Ka_val)).toFixed(2);
-    cards+=makeCard('halfEq','half','3. Half-Equivalence Point',`pH = pKa = ${pKa}`,'half-c');
-    window._calcModals.halfEq={title:`Half-Equivalence Point (V = ${hV.toFixed(2)} mL)`,color:'var(--half)',
-      html:`
-    <div class="cm-step">At the half-equivalence point, exactly half of the original acid has been neutralized. This means:</div>
-    <div class="cm-formula">moles A⁻  =  moles HA remaining</div>
-
-    <div class="cm-step">Apply the Henderson–Hasselbalch equation:</div>
-    <div class="cm-formula">pH  =  pKa  +  log₁₀( [A⁻] / [HA] )</div>
-
-    <div class="cm-step">Since [A⁻] = [HA], the log term vanishes:</div>
-    <div class="cm-formula">pH  =  pKa  +  log₁₀(1)
-
-pH  =  pKa  +  0
-
-pH  =  pKa</div>
-
-    <div class="cm-result half-c">pH = pKa = ${pKa}</div>`};
-  }else if(type==='wb_sa'&&hV!=null){
-    const pKb=(-Math.log10(Ka_val)).toFixed(2);
-    cards+=makeCard('halfEq','half','3. Half-Equivalence Point',`pH = 14 − pKb = ${data.halfEqPH.toFixed(2)}`,'half-c');
-    window._calcModals.halfEq={title:`Half-Equivalence Point (V = ${hV.toFixed(2)} mL)`,color:'var(--half)',
-      html:`
-    <div class="cm-step">At half-equivalence, moles BH⁺ = moles B remaining.</div>
-
-    <div class="cm-step">Henderson–Hasselbalch (base form):</div>
-    <div class="cm-formula">pOH  =  pKb  +  log₁₀( [BH⁺] / [B] )
-
-When [BH⁺] = [B]:
-
-pOH  =  pKb  +  log₁₀(1)  =  pKb
-
-pH  =  14  −  pKb</div>
-
-    <div class="cm-result half-c">pH = 14 − ${pKb} = ${data.halfEqPH.toFixed(2)}</div>`};
-  }
-
-  // ─── 4. Buffer Region ───
-  if(data.hasBuffer){
-    const bS=data.bufferStart.toFixed(1),bE=data.bufferEnd.toFixed(1);
-    if(type==='wa_sb'){
-      const pKa=(-Math.log10(Ka_val)).toFixed(2);
-      cards+=makeCard('bufReg','buffer','4. Buffer Region',`${bS} – ${bE} mL (pH ≈ pKa ± 1)`,'buffer-c');
-      window._calcModals.bufReg={title:`Buffer Region (${bS} – ${bE} mL)`,color:'var(--buffer)',
-        html:`
-    <div class="cm-step">In the buffer region, both HA and its conjugate base A⁻ are present in significant amounts. The pH is governed by the Henderson–Hasselbalch equation:</div>
-    <div class="cm-formula">pH  =  pKa  +  log₁₀( [A⁻] / [HA] )</div>
-
-    <div class="cm-step">At any volume V of titrant added in this range:</div>
-    <div class="cm-formula">mol A⁻  =  C(titrant) × V(titrant)
-
-mol HA  =  n(analyte)  −  C(titrant) × V(titrant)</div>
-
-    <div class="cm-step">Accounting for dilution (both species share the same total volume, so it cancels in the ratio):</div>
-    <div class="cm-formula">V(total) = V(analyte) + V(titrant)
-
-[A⁻]  =  mol A⁻  /  V(total)
-[HA]  =  mol HA  /  V(total)
-
-Since V(total) cancels:
-pH  =  pKa  +  log₁₀( mol A⁻ / mol HA )</div>
-
-    <div class="cm-step">Worked example at the midpoint (V = ${hV.toFixed(2)} mL):</div>
-    <div class="cm-formula">mol A⁻  =  ${Cb} M × ${(hV/1000).toFixed(5)} L${nTf>1?' × '+nTf:''}
-        =  ${sci(Cb*hV/1000*nTf)} mol
-
-mol HA  =  ${sci(eqA)}  −  ${sci(Cb*hV/1000*nTf)}
-        =  ${sci(eqA-Cb*hV/1000*nTf)} mol
-
-pH  =  ${pKa}  +  log₁₀( ${sci(Cb*hV/1000*nTf)} / ${sci(eqA-Cb*hV/1000*nTf)} )
-pH  =  ${pKa}  +  log₁₀(1.00)
-pH  =  ${pKa}</div>
-
-    <div class="cm-result buffer-c">Effective buffer range: pH ≈ pKa ± 1 = ${(parseFloat(pKa)-1).toFixed(1)} to ${(parseFloat(pKa)+1).toFixed(1)}</div>`};
-    }else if(type==='wb_sa'){
-      const pKb=(-Math.log10(Ka_val)).toFixed(2);
-      cards+=makeCard('bufReg','buffer','4. Buffer Region',`${bS} – ${bE} mL (pOH ≈ pKb ± 1)`,'buffer-c');
-      window._calcModals.bufReg={title:`Buffer Region (${bS} – ${bE} mL)`,color:'var(--buffer)',
-        html:`
-    <div class="cm-step">Both B and BH⁺ are present. Henderson–Hasselbalch (base form):</div>
-    <div class="cm-formula">pOH  =  pKb  +  log₁₀( [BH⁺] / [B] )
-
-pH  =  14  −  pOH</div>
-
-    <div class="cm-step">Dilution is accounted for using M₁V₁ = M₂V₂ to update concentrations at each volume:</div>
-    <div class="cm-formula">V(total)  =  V(analyte) + V(titrant)
-
-mol BH⁺  =  C(titrant) × V(titrant)
-mol B    =  n(analyte) − mol BH⁺</div>
-
-    <div class="cm-result buffer-c">Effective buffer range: pOH ≈ pKb ± 1</div>`};
-    }
-  }
-
-  // ─── 5. Equivalence Point ───
-  const sn=data.hasBuffer?'5':'3';
-  if(type==='wa_sb'){
-    const Kbc=Kw/Ka_val,Cbc=eqA/(Va+VeqL);
-    cards+=makeCard('eqPt','equiv',`${sn}. Equivalence Point`,`pH = ${data.eqPH.toFixed(2)}`,'equiv-c');
-    window._calcModals.eqPt={title:`Equivalence Point (V = ${Veq.toFixed(2)} mL)`,color:'var(--equiv)',
-      html:`
-    <div class="cm-step">At equivalence, all HA has been converted to A⁻ (conjugate base). The conjugate base hydrolyzes in water:</div>
-    <div class="cm-formula">A⁻  +  H₂O  ⇌  HA  +  OH⁻</div>
-
-    <div class="cm-step">Find the concentration of A⁻ using dilution:</div>
-    <div class="cm-formula">M₁V₁ = M₂V₂
-
-[A⁻]  =  n(analyte)  /  V(total)
-
-[A⁻]  =  ${sci(eqA)} mol  /  ( ${(Va*1000).toFixed(1)} + ${Veq.toFixed(1)} ) mL
-
-[A⁻]  =  ${sci(eqA)} mol  /  ${sci(Va+VeqL)} L
-
-[A⁻]  =  ${sci(Cbc)} M</div>
-
-    <div class="cm-step">Calculate Kb of the conjugate base:</div>
-    <div class="cm-formula">Kb  =  Kw / Ka
-
-Kb  =  ${sci(Kw)}  /  ${sci(Ka_val)}
-
-Kb  =  ${sci(Kbc)}</div>
-
-    <div class="cm-step">ICE table for hydrolysis, then solve the quadratic:</div>
-    <div class="cm-formula">Kb  =  x²  /  ( ${sci(Cbc)} − x )
-
-x  =  [OH⁻]
-
-pOH  =  −log₁₀(x)
-
-pH  =  14  −  pOH</div>
-
-    <div class="cm-result equiv-c">pH at equivalence = ${data.eqPH.toFixed(2)}</div>`};
-  }else if(type==='wb_sa'){
-    const Kac=Kw/Ka_val,Cac=eqA/(Va+VeqL);
-    cards+=makeCard('eqPt','equiv',`${sn}. Equivalence Point`,`pH = ${data.eqPH.toFixed(2)}`,'equiv-c');
-    window._calcModals.eqPt={title:`Equivalence Point (V = ${Veq.toFixed(2)} mL)`,color:'var(--equiv)',
-      html:`
-    <div class="cm-step">All B has been converted to BH⁺ (conjugate acid):</div>
-    <div class="cm-formula">BH⁺  ⇌  B  +  H⁺</div>
-
-    <div class="cm-step">Concentration after dilution:</div>
-    <div class="cm-formula">[BH⁺]  =  ${sci(eqA)}  /  ${sci(Va+VeqL)} L
-
-[BH⁺]  =  ${sci(Cac)} M</div>
-
-    <div class="cm-step">Ka of the conjugate acid:</div>
-    <div class="cm-formula">Ka  =  Kw / Kb  =  ${sci(Kw)} / ${sci(Ka_val)}
-
-Ka  =  ${sci(Kac)}</div>
-
-    <div class="cm-step">ICE table → quadratic:</div>
-    <div class="cm-formula">Ka  =  x² / ( ${sci(Cac)} − x )
-
-x  =  [H⁺]
-
-pH  =  −log₁₀(x)</div>
-
-    <div class="cm-result equiv-c">pH at equivalence = ${data.eqPH.toFixed(2)}</div>`};
-  }else if(type==='sa_sb'||type==='sb_sa'){
-    cards+=makeCard('eqPt','equiv','3. Equivalence Point',`pH = 7.00`,'equiv-c');
-    window._calcModals.eqPt={title:`Equivalence Point (V = ${Veq.toFixed(2)} mL)`,color:'var(--equiv)',
-      html:`
-    <div class="cm-step">Strong acid + strong base produces water and a neutral salt. No hydrolysis occurs:</div>
-    <div class="cm-formula">H⁺  +  OH⁻  →  H₂O
-
-At equivalence:  [H⁺]  =  [OH⁻]  =  √Kw</div>
-
-    <div class="cm-result equiv-c">pH = 7.00</div>`};
-  }else if(type==='sa_wb'){
-    const Kac=Kw/KbT,Cac=eqA/(Va+VeqL);
-    cards+=makeCard('eqPt','equiv','3. Equivalence Point',`pH = ${data.eqPH.toFixed(2)}`,'equiv-c');
-    window._calcModals.eqPt={title:`Equivalence Point (V = ${Veq.toFixed(2)} mL)`,color:'var(--equiv)',
-      html:`
-    <div class="cm-step">All H⁺ neutralized → forms BH⁺ (conjugate acid of the weak base titrant):</div>
-    <div class="cm-formula">[BH⁺]  =  ${sci(Cac)} M
-
-Ka(BH⁺)  =  Kw / Kb  =  ${sci(Kac)}
-
-ICE:  Ka = x² / ( ${sci(Cac)} − x )
-
-pH  =  −log₁₀(x)</div>
-
-    <div class="cm-result equiv-c">pH at equivalence = ${data.eqPH.toFixed(2)}</div>`};
-  }else if(type==='sb_wa'){
-    const Kbc=Kw/KbT,Cbc=eqA/(Va+VeqL);
-    cards+=makeCard('eqPt','equiv','3. Equivalence Point',`pH = ${data.eqPH.toFixed(2)}`,'equiv-c');
-    window._calcModals.eqPt={title:`Equivalence Point (V = ${Veq.toFixed(2)} mL)`,color:'var(--equiv)',
-      html:`
-    <div class="cm-step">All OH⁻ neutralized → forms A⁻ (conjugate base of the weak acid titrant):</div>
-    <div class="cm-formula">[A⁻]  =  ${sci(Cbc)} M
-
-Kb(A⁻)  =  Kw / Ka  =  ${sci(Kbc)}
-
-ICE:  Kb = x² / ( ${sci(Cbc)} − x )
-
-pOH = −log₁₀(x)
-pH  = 14 − pOH</div>
-
-    <div class="cm-result equiv-c">pH at equivalence = ${data.eqPH.toFixed(2)}</div>`};
-  }
-
-  // ─── 6. Post-Equivalence ───
-  const pV=Veq*1.5,pPt=data.points.reduce((b,p)=>Math.abs(p.x-pV)<Math.abs(b.x-pV)?p:b,data.points[0]);
-  const exM=Cb*(pV/1000)*nTf-eqA,tVp=Va+pV/1000;
-  const sn2=data.hasBuffer?'6':(type==='sa_sb'||type==='sb_sa'?'4':'4');
-  if(type==='wa_sb'||type==='sa_sb'){
-    cards+=makeCard('postEq','excess',`${sn2}. Post-Equivalence`,`pH = ${pPt.y.toFixed(2)} at ${pV.toFixed(1)} mL`,'base-c');
-    window._calcModals.postEq={title:`Post-Equivalence (V = ${pV.toFixed(1)} mL)`,color:'var(--base)',
-      html:`
-    <div class="cm-step">Beyond the equivalence point, excess strong base is added. The excess OH⁻ dominates the pH:</div>
-    <div class="cm-formula">mol OH⁻(excess) = C(titrant) × V(titrant)${nTf>1?' × '+nTf:''}  −  eq(analyte)
-
-=  ${Cb} M  ×  ${(pV/1000).toFixed(4)} L${nTf>1?'  ×  '+nTf:''}  −  ${sci(eqA)} mol
-
-=  ${sci(exM)} mol</div>
-
-    <div class="cm-step">Find the concentration using the total diluted volume:</div>
-    <div class="cm-formula">[OH⁻]  =  mol(excess)  /  V(total)
-
-=  ${sci(exM)} mol  /  ${sci(tVp)} L
-
-=  ${sci(exM/tVp)} M</div>
-
-    <div class="cm-step">Convert to pH:</div>
-    <div class="cm-formula">pOH  =  −log₁₀( ${sci(exM/tVp)} )
-
-pOH  =  ${(-Math.log10(exM/tVp)).toFixed(2)}
-
-pH   =  14  −  pOH</div>
-
-    <div class="cm-result base-c">pH = ${pPt.y.toFixed(2)}</div>`};
-  }else if(type==='wb_sa'||type==='sb_sa'){
-    cards+=makeCard('postEq','excess',`${sn2}. Post-Equivalence`,`pH = ${pPt.y.toFixed(2)} at ${pV.toFixed(1)} mL`,'base-c');
-    window._calcModals.postEq={title:`Post-Equivalence (V = ${pV.toFixed(1)} mL)`,color:'var(--base)',
-      html:`
-    <div class="cm-step">Excess strong acid dominates the pH:</div>
-    <div class="cm-formula">mol H⁺(excess)  =  ${sci(exM)} mol
-
-[H⁺]  =  ${sci(exM/tVp)} M
-
-pH  =  −log₁₀( ${sci(exM/tVp)} )</div>
-
-    <div class="cm-result base-c">pH = ${pPt.y.toFixed(2)}</div>`};
-  }else if(type==='sa_wb'){
-    cards+=makeCard('postEq','excess',`${sn2}. Post-Equivalence`,`pH ≈ ${pPt.y.toFixed(2)} at ${pV.toFixed(1)} mL`,'base-c');
-    window._calcModals.postEq={title:`Post-Equivalence (V = ${pV.toFixed(1)} mL)`,color:'var(--base)',
-      html:`
-    <div class="cm-step">Excess weak base — pH from Kb equilibrium:</div>
-    <div class="cm-formula">[B](excess)  =  ${sci(exM/tVp)} M
-
-Kb  =  x²  /  ( [B] − x )
-
-x = [OH⁻]
-
-pH  =  14  −  pOH</div>
-
-    <div class="cm-result base-c">pH ≈ ${pPt.y.toFixed(2)}</div>`};
-  }else if(type==='sb_wa'){
-    cards+=makeCard('postEq','excess',`${sn2}. Post-Equivalence`,`pH ≈ ${pPt.y.toFixed(2)} at ${pV.toFixed(1)} mL`,'base-c');
-    window._calcModals.postEq={title:`Post-Equivalence (V = ${pV.toFixed(1)} mL)`,color:'var(--base)',
-      html:`
-    <div class="cm-step">Excess weak acid — pH from Ka equilibrium:</div>
-    <div class="cm-formula">[HA](excess)  =  ${sci(exM/tVp)} M
-
-Ka  =  x²  /  ( [HA] − x )
-
-x = [H⁺]
-
-pH  =  −log₁₀(x)</div>
-
-    <div class="cm-result base-c">pH ≈ ${pPt.y.toFixed(2)}</div>`};
-  }
-
-  el.innerHTML=cards;
-}
-
-// Global modal opener
-window.openCalcModal=function(id){
-  const m=window._calcModals[id];
-  if(m)openModal(m.title,m.color,m.html);
-}
-
-// Run
-document.getElementById('runBtn').addEventListener('click',()=>{
-  const type=titType.value,Ca=parseFloat(document.getElementById('analyteC').value),Va=parseFloat(document.getElementById('analyteV').value),Cb=parseFloat(document.getElementById('titrantC').value),Kv=parseFloat(kaInput.value),KbTv=parseFloat(kbTitrantInput.value);
-  const nAf=parseInt(document.getElementById('analyteN').value)||1;
-  const nTf=parseInt(document.getElementById('titrantN').value)||1;
-  if(isNaN(Ca)||isNaN(Va)||isNaN(Cb)||Ca<=0||Va<=0||Cb<=0){alert('Enter valid positive values for concentrations and volume.');return}
-  if((type==='wa_sb'||type==='wb_sa')&&(isNaN(Kv)||Kv<=0)){alert('Enter a valid Ka/Kb value.');return}
-  if((type==='sa_wb'||type==='sb_wa')&&(isNaN(KbTv)||KbTv<=0)){alert('Enter a valid Ka/Kb for the titrant.');return}
-  const data=generateCurve(type,Ca,Va,Cb,Kv,KbTv,nAf,nTf);
-  renderChart(data,type);showResults(data,type,Kv);showCalcs(data,type,Ca,Va,Cb,Kv,KbTv,nAf,nTf);
-});
-</script>
-</body>
-</html>
+Web VPython 3.2
+from vpython import *
+
+LN10 = 2.302585093
+
+def log10(x):
+    if x < 1e-14:
+        x = 1e-14
+    return log(x) / LN10
+
+acid_names = [
+    "Acetic Acid Ka=1.8e-5",
+    "Formic Acid Ka=1.8e-4",
+    "HF Ka=6.8e-4",
+    "HNO2 Ka=4.5e-4",
+    "HCN Ka=6.2e-10",
+    "H2CO3 Ka=4.3e-7",
+    "NH4+ Ka=5.6e-10",
+    "Phenol Ka=1.0e-10",
+]
+acid_ka = [1.8e-5, 1.8e-4, 6.8e-4, 4.5e-4, 6.2e-10, 4.3e-7, 5.6e-10, 1.0e-10]
+base_names = ["NaOH", "KOH", "LiOH"]
+S = [1.8e-5, 0.1, 50.0, 0.1]
+
+# ======================================================
+scene.title = "<h2>Weak Acid - Strong Base Titration</h2>"
+scene.width = 800
+scene.height = 500
+scene.background = vec(1, 1, 1)
+scene.center = vec(50, 50, 0)
+scene.range = 68
+scene.forward = vec(0, 0, -1)
+scene.up = vec(0, 1, 0)
+
+objs = []
+
+def clear_all():
+    i = 0
+    while i < len(objs):
+        objs[i].visible = False
+        i = i + 1
+    del objs[:]
+
+def do_plot():
+    clear_all()
+    Ka = 1.0 * S[0]
+    Ca = 1.0 * S[1]
+    Va = 1.0 * S[2]
+    Cb = 1.0 * S[3]
+
+    Kw = 1.0e-14
+    pKa_v = -1.0 * log10(Ka)
+    Kb = Kw / Ka
+    mol_a = Ca * Va / 1000.0
+    Ve = (Ca * Va) / Cb
+    V_half = Ve / 2.0
+    buf_lo = pKa_v - 1.0
+    buf_hi = pKa_v + 1.0
+    max_v = Ve * 1.6
+    if max_v < 10.0:
+        max_v = 10.0
+
+    # Pre-compute ALL pH values into plain lists
+    N = 100
+    vol_list = []
+    ph_list = []
+    i = 0
+    while i <= N:
+        v = max_v * i / (1.0 * N)
+        if v < 0.01:
+            v = 0.01
+        mb = Cb * v / 1000.0
+        diff = mb - mol_a
+
+        pH = 7.0
+        if v < 0.01:
+            pH = -1.0 * log10((-Ka + sqrt(Ka*Ka + 4.0*Ka*Ca)) / 2.0)
+        elif diff < -1e-9:
+            mHA = mol_a - mb
+            mA = mb
+            if mA < 1e-14:
+                mA = 1e-14
+            pH = -1.0*log10(Ka) + 1.0*log10(mA/mHA)
+        elif diff > 1e-9:
+            exOH = diff / ((Va + v) / 1000.0)
+            if exOH < 1e-14:
+                exOH = 1e-14
+            pH = 14.0 + 1.0*log10(exOH)
+        else:
+            cA = mol_a / ((Va + v) / 1000.0)
+            xOH = (-Kb + sqrt(Kb*Kb + 4.0*Kb*cA)) / 2.0
+            if xOH < 1e-14:
+                xOH = 1e-14
+            pH = 14.0 + 1.0*log10(xOH)
+
+        if pH < 0.0:
+            pH = 0.0
+        if pH > 14.0:
+            pH = 14.0
+
+        vol_list.append(v)
+        ph_list.append(pH)
+        i = i + 1
+
+    # Get key values from lists
+    pH_init = ph_list[0]
+
+    # Compute half-eq and equiv pH directly
+    mb_half = Cb * V_half / 1000.0
+    mHA_h = mol_a - mb_half
+    mA_h = mb_half
+    if mA_h < 1e-14:
+        mA_h = 1e-14
+    if mHA_h < 1e-14:
+        mHA_h = 1e-14
+    pH_half = -1.0*log10(Ka) + 1.0*log10(mA_h/mHA_h)
+
+    cA_eq = mol_a / ((Va + Ve) / 1000.0)
+    xOH_eq = (-Kb + sqrt(Kb*Kb + 4.0*Kb*cA_eq)) / 2.0
+    if xOH_eq < 1e-14:
+        xOH_eq = 1e-14
+    pH_eq = 14.0 + 1.0*log10(xOH_eq)
+
+    # Scale to 0-100
+    def sx(v):
+        return 100.0 * v / max_v
+    def sy(p):
+        return 100.0 * p / 14.0
+
+    # ========= DRAW CURVE FIRST (blue) =========
+    # Build as list of vec, then create single curve
+    curve_pts = []
+    j = 0
+    while j <= N:
+        px = 1.0 * sx(vol_list[j])
+        py = 1.0 * sy(ph_list[j])
+        curve_pts.append(vec(px, py, 1))
+        j = j + 1
+
+    o = curve(pos=curve_pts, color=color.blue, radius=0.5)
+    objs.append(o)
+
+    # ========= AXES =========
+    o = curve(pos=[vec(0,0,0), vec(102,0,0)], color=color.black, radius=0.25)
+    objs.append(o)
+    o = curve(pos=[vec(0,0,0), vec(0,102,0)], color=color.black, radius=0.25)
+    objs.append(o)
+
+    # X ticks
+    step_x = 10
+    if max_v > 100:
+        step_x = 20
+    xv = step_x
+    while xv <= max_v:
+        xx = sx(xv)
+        o = curve(pos=[vec(xx,0,0), vec(xx,-2,0)], color=color.black, radius=0.12)
+        objs.append(o)
+        o = label(pos=vec(xx,-5,0), text=str(int(xv)), height=11, box=False, color=color.black, opacity=0)
+        objs.append(o)
+        xv = xv + step_x
+
+    # Y ticks
+    yv = 0
+    while yv <= 14:
+        yy = sy(yv)
+        o = curve(pos=[vec(0,yy,0), vec(-2,yy,0)], color=color.black, radius=0.12)
+        objs.append(o)
+        o = label(pos=vec(-6,yy,0), text=str(yv), height=11, box=False, color=color.black, opacity=0)
+        objs.append(o)
+        yv = yv + 2
+
+    # Axis labels
+    o = label(pos=vec(50,-12,0), text="Volume of Strong Base Added (mL)", height=12, box=False, color=color.black, opacity=0)
+    objs.append(o)
+    o = label(pos=vec(-13,50,0), text="p\nH", height=13, box=False, color=color.black, opacity=0)
+    objs.append(o)
+
+    # ========= pKa LINE (orange) =========
+    o = curve(pos=[vec(0,sy(pKa_v),0), vec(100,sy(pKa_v),0)], color=color.orange, radius=0.12)
+    objs.append(o)
+    o = label(pos=vec(108,sy(pKa_v),0), text="pKa="+str(round(pKa_v,1)), height=10, box=False, color=color.orange, opacity=0)
+    objs.append(o)
+
+    # ========= HALF-EQ LINE (red) =========
+    xh = sx(V_half)
+    o = curve(pos=[vec(xh,0,0), vec(xh,sy(pH_half),0)], color=color.red, radius=0.12)
+    objs.append(o)
+
+    # ========= EQUIV LINE (green) =========
+    xe = sx(Ve)
+    o = curve(pos=[vec(xe,0,0), vec(xe,sy(pH_eq),0)], color=vec(0.1,0.7,0.2), radius=0.12)
+    objs.append(o)
+
+    # ========= BUFFER LINES (cyan) =========
+    o = curve(pos=[vec(0,sy(buf_lo),0), vec(90,sy(buf_lo),0)], color=color.cyan, radius=0.1)
+    objs.append(o)
+    o = curve(pos=[vec(0,sy(buf_hi),0), vec(90,sy(buf_hi),0)], color=color.cyan, radius=0.1)
+    objs.append(o)
+    o = label(pos=vec(96,sy(pKa_v),0), text="Buffer\nRegion", height=9, box=False, color=color.cyan, opacity=0)
+    objs.append(o)
+
+    # ========= MARKERS =========
+    o = sphere(pos=vec(xh, sy(pH_half), 1), radius=1.8, color=color.red)
+    objs.append(o)
+    o = label(pos=vec(xh, sy(pH_half)+10, 1), text="Half-Equivalence\npH = pKa = "+str(round(pH_half,2)), height=12, box=True, color=color.red, opacity=0.9)
+    objs.append(o)
+
+    o = sphere(pos=vec(xe, sy(pH_eq), 1), radius=1.8, color=vec(0.1,0.7,0.2))
+    objs.append(o)
+    o = label(pos=vec(xe, sy(pH_eq)+10, 1), text="Equivalence Point\npH = "+str(round(pH_eq,2)), height=12, box=True, color=vec(0.1,0.7,0.2), opacity=0.9)
+    objs.append(o)
+
+    # Volume labels on x-axis
+    o = label(pos=vec(xh,-8,0), text=str(round(V_half,1))+"mL", height=9, box=False, color=color.red, opacity=0)
+    objs.append(o)
+    o = label(pos=vec(xe,-8,0), text=str(round(Ve,1))+"mL", height=9, box=False, color=vec(0.1,0.7,0.2), opacity=0)
+    objs.append(o)
+
+    # Results text
+    out = "<b>Using:</b> Ka=" + str(Ka) + " [HA]=" + str(Ca) + "M Vol=" + str(Va) + "mL [Base]=" + str(Cb) + "M"
+    out = out + "<br><b>pKa</b>=" + str(round(pKa_v,2))
+    out = out + " | <b>Init pH</b>=" + str(round(pH_init,2))
+    out = out + " | <b>Half-Eq:</b> " + str(round(V_half,1)) + "mL, pH=" + str(round(pH_half,2))
+    out = out + " | <b>Equiv:</b> " + str(round(Ve,1)) + "mL, pH=" + str(round(pH_eq,2))
+    out = out + " | <b>Buffer:</b> pH " + str(round(buf_lo,1)) + "-" + str(round(buf_hi,1))
+    out = out + "<br><b>Formulas:</b> "
+    out = out + "[1] Ka=[H+]^2/([HA]-[H+]) "
+    out = out + "[2] pH=pKa+log([A-]/[HA]) "
+    out = out + "[3] Half-eq: pH=pKa "
+    out = out + "[4] Equiv: Kb hydrolysis "
+    out = out + "[5] Past equiv: pH=14-pOH"
+    results_text.text = out
+
+# ======================================================
+#  CONTROLS (below canvas)
+# ======================================================
+scene.caption = "\n"
+wtext(text="<b>Acid:</b> ")
+def pick_acid(m):
+    i = 0
+    while i < len(acid_names):
+        if acid_names[i] == m.selected:
+            S[0] = acid_ka[i]
+            ka_lab.text = " Ka=" + str(acid_ka[i]) + " "
+        i = i + 1
+acid_menu = menu(choices=acid_names, bind=pick_acid)
+ka_lab = wtext(text=" Ka=1.8e-05 ")
+wtext(text=" <b>Base:</b> ")
+def pick_base(m):
+    pass
+menu(choices=base_names, bind=pick_base)
+wtext(text="\n")
+wtext(text="<b>[HA] M:</b> ")
+def set_ca(w):
+    S[1] = w.number
+ca_w = winput(bind=set_ca, type="numeric", text="0.1")
+wtext(text=" <b>Vol mL:</b> ")
+def set_va(w):
+    S[2] = w.number
+va_w = winput(bind=set_va, type="numeric", text="50")
+wtext(text=" <b>[Base] M:</b> ")
+def set_cb(w):
+    S[3] = w.number
+cb_w = winput(bind=set_cb, type="numeric", text="0.1")
+wtext(text=" ")
+def run_click(b):
+    # Read latest values from widgets (in case user typed but didn't press Enter)
+    v1 = ca_w.number
+    v2 = va_w.number
+    v3 = cb_w.number
+    if v1 is not None and v1 > 0:
+        S[1] = v1
+    if v2 is not None and v2 > 0:
+        S[2] = v2
+    if v3 is not None and v3 > 0:
+        S[3] = v3
+    do_plot()
+button(text=" Run Titration ", bind=run_click)
+wtext(text="\n")
+results_text = wtext(text="")
+
+do_plot()
