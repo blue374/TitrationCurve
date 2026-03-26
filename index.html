@@ -158,6 +158,17 @@
   .calc-modal-body .cm-result.buffer-c{color:var(--buffer);background:#05966908;border:1px solid #05966925}
   .calc-modal-body .cm-result.base-c{color:var(--base);background:#7c3aed08;border:1px solid #7c3aed25}
   .calc-modal-body .cm-divider{height:1px;background:var(--border);margin:1.2rem 0}
+  .calc-modal-body .cm-concept{
+    font-size:.84rem;color:var(--text-dim);line-height:1.65;
+    padding:.8rem 1rem;margin-bottom:1.1rem;
+    background:linear-gradient(135deg,#f8fafc,#f0f4f8);border:1px solid var(--border);border-radius:10px;
+    border-left:3px solid;
+  }
+  .calc-modal-body .cm-concept.accent-b{border-left-color:var(--accent)}
+  .calc-modal-body .cm-concept.equiv-b{border-left-color:var(--equiv)}
+  .calc-modal-body .cm-concept.half-b{border-left-color:var(--half)}
+  .calc-modal-body .cm-concept.buffer-b{border-left-color:var(--buffer)}
+  .calc-modal-body .cm-concept.base-b{border-left-color:var(--base)}
 
   @media(max-width:800px){.sidebar{border-right:none;border-bottom:1px solid var(--border)}.app{min-height:auto}.chart-wrap{min-height:340px}}
 </style>
@@ -241,6 +252,7 @@
       <div class="legend-item"><div class="legend-dot" style="background:var(--half)"></div>½ Equivalence Point</div>
       <div class="legend-item"><div class="legend-region" style="background:var(--buffer)"></div>Buffer Region</div>
       <div class="legend-item"><div class="legend-swatch" style="background:var(--text-muted);opacity:.35"></div>pH 7 Reference</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--text-muted);opacity:.25;border-top:2px dashed #94a3b8"></div>Previous Curve</div>
     </div>
   </main>
 
@@ -377,6 +389,8 @@ function generateCurve(type,Ca,Va_mL,Cb,Ka_val,KbT,nA_factor,nT_factor){
 
 // Chart
 let chartInstance=null;
+let prevCurveData=null; // store previous curve for comparison
+
 function renderChart(data,type){
   const canvas=document.getElementById('chart');
   document.getElementById('placeholder').style.display='none';canvas.style.display='block';document.getElementById('legend').style.display='flex';
@@ -412,19 +426,42 @@ function renderChart(data,type){
       padding:{x:7,y:4},borderRadius:6,borderColor:'#b4530930',borderWidth:1};
   }
 
-  const maxX=points[points.length-1].x;
+  // Determine x-axis max: use max of current & previous curve so the shift is visible
+  const curMaxX=points[points.length-1].x;
+  const prevMaxX=prevCurveData?prevCurveData[prevCurveData.length-1].x:0;
+  const maxX=Math.max(curMaxX,prevMaxX);
+
+  // Build datasets
+  const datasets=[{
+    label:'Current',data:points,showLine:true,borderColor:'#2563eb',backgroundColor:'#2563eb10',borderWidth:3,
+    pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:'#2563eb',tension:0.2,fill:false
+  }];
+
+  // Add previous curve as ghost overlay
+  if(prevCurveData){
+    datasets.unshift({
+      label:'Previous',data:prevCurveData,showLine:true,
+      borderColor:'#94a3b840',backgroundColor:'transparent',borderWidth:2,
+      borderDash:[6,4],pointRadius:0,pointHoverRadius:0,tension:0.2,fill:false
+    });
+  }
+
   chartInstance=new Chart(canvas,{type:'scatter',
-    data:{datasets:[{data:points,showLine:true,borderColor:'#2563eb',backgroundColor:'#2563eb10',borderWidth:3,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:'#2563eb',tension:0.2,fill:false}]},
+    data:{datasets},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},
       plugins:{legend:{display:false},
         tooltip:{backgroundColor:'#fff',titleColor:'#1e293b',bodyColor:'#475569',borderColor:'#d0d8e4',borderWidth:1,
           titleFont:{family:'JetBrains Mono',size:12,weight:'600'},bodyFont:{family:'DM Sans',size:13},padding:10,
+          filter:item=>item.datasetIndex===datasets.length-1,
           callbacks:{title:ctx=>ctx&&ctx[0]?`Volume: ${ctx[0].parsed.x.toFixed(2)} mL`:'',label:ctx=>ctx?`pH: ${ctx.parsed.y.toFixed(2)}`:''}},
         annotation:{annotations:ann}},
       scales:{
         x:{title:{display:true,text:'Volume of Titrant Added (mL)',color:'#334155',font:{family:'DM Sans',size:14,weight:'600'}},min:0,max:Math.ceil(maxX/5)*5,grid:{color:'#e2e8f0'},ticks:{color:'#475569',font:{family:'JetBrains Mono',size:11},callback:v=>v.toFixed(1)},border:{color:'#cbd5e1'}},
         y:{title:{display:true,text:'pH',color:'#334155',font:{family:'DM Sans',size:14,weight:'600'}},min:0,max:14,grid:{color:'#e2e8f0'},ticks:{color:'#475569',font:{family:'JetBrains Mono',size:11},stepSize:1},border:{color:'#cbd5e1'}}}
     }});
+
+  // Store current as previous for next comparison
+  prevCurveData=points.map(p=>({x:p.x,y:p.y}));
 }
 
 // Results sidebar
@@ -492,6 +529,7 @@ function showCalcs(data,type,Ca,Va_mL,Cb,Ka_val,KbT,nAf,nTf){
   const nNote_t = nTf>1 ? ` × ${nTf} (equiv/mol)` : '';
   window._calcModals.eqVol={title:'Equivalence Volume', color:'var(--accent)',
     html:`
+    <div class="cm-concept accent-b">The <strong>equivalence volume</strong> is the exact volume of titrant needed to completely react with all of the analyte. At this point, moles (or equivalents) of acid equal moles (or equivalents) of base — the reaction is stoichiometrically complete.</div>
     <div class="cm-step">Calculate equivalents of H⁺ or OH⁻ from the analyte:</div>
     <div class="cm-formula">eq(analyte) = C × V${nAf>1?' × n':''}
 
@@ -515,6 +553,7 @@ V(eq) = ${Veq.toFixed(2)} mL</div>
     cards+=makeCard('initpH','initial','2. Initial pH (ICE Table)',`pH = ${ip.toFixed(2)}`,'accent-c');
     window._calcModals.initpH={title:'Initial pH — Weak Acid ICE Table',color:'var(--accent)',
       html:`
+    <div class="cm-concept accent-b">The <strong>initial pH</strong> is the pH of the analyte solution before any titrant is added. For a weak acid, only a small fraction of molecules donate their H⁺ to water, so we use an ICE (Initial–Change–Equilibrium) table and the Ka expression to find [H⁺].</div>
     <div class="cm-step">The weak acid partially dissociates in water:</div>
     <div class="cm-formula">HA  ⇌  H⁺  +  A⁻</div>
 
@@ -547,6 +586,7 @@ pH  =  −log₁₀(${sci(Math.pow(10,-ip))})</div>
     cards+=makeCard('initpH','initial','2. Initial pH (ICE Table)',`pH = ${ip.toFixed(2)}`,'accent-c');
     window._calcModals.initpH={title:'Initial pH — Weak Base ICE Table',color:'var(--accent)',
       html:`
+    <div class="cm-concept accent-b">The <strong>initial pH</strong> is the pH before any titrant is added. For a weak base, only a fraction of molecules accept H⁺ from water, producing OH⁻. We use an ICE table with the Kb expression to find [OH⁻], then convert to pH.</div>
     <div class="cm-step">The weak base reacts with water:</div>
     <div class="cm-formula">B  +  H₂O  ⇌  BH⁺  +  OH⁻</div>
 
@@ -573,6 +613,7 @@ pH  =  14 − pOH</div>
     cards+=makeCard('initpH','initial','2. Initial pH',`pH = ${ip.toFixed(2)}`,'accent-c');
     window._calcModals.initpH={title:'Initial pH — Strong Acid',color:'var(--accent)',
       html:`
+    <div class="cm-concept accent-b">The <strong>initial pH</strong> is the pH before any titrant is added. Strong acids dissociate completely in water — every molecule releases its H⁺ — so [H⁺] equals the acid concentration directly.</div>
     <div class="cm-step">Strong acids dissociate completely:</div>
     <div class="cm-formula">HA  →  H⁺  +  A⁻     (100% dissociation)
 
@@ -585,6 +626,7 @@ pH  =  −log₁₀(${Ca})</div>
     cards+=makeCard('initpH','initial','2. Initial pH',`pH = ${ip.toFixed(2)}`,'accent-c');
     window._calcModals.initpH={title:'Initial pH — Strong Base',color:'var(--accent)',
       html:`
+    <div class="cm-concept accent-b">The <strong>initial pH</strong> is the pH before any titrant is added. Strong bases dissociate completely in water — every formula unit releases its OH⁻ — so [OH⁻] equals the base concentration directly, and pH = 14 − pOH.</div>
     <div class="cm-step">Strong bases dissociate completely:</div>
     <div class="cm-formula">BOH  →  B⁺  +  OH⁻     (100% dissociation)
 
@@ -603,7 +645,8 @@ pH  =  14 − pOH</div>
     cards+=makeCard('halfEq','half','3. Half-Equivalence Point',`pH = pKa = ${pKa}`,'half-c');
     window._calcModals.halfEq={title:`Half-Equivalence Point (V = ${hV.toFixed(2)} mL)`,color:'var(--half)',
       html:`
-    <div class="cm-step">At the half-equivalence point, exactly half of the original acid has been neutralized. This means:</div>
+    <div class="cm-concept half-b">The <strong>half-equivalence point</strong> is where exactly half of the analyte has been neutralized, so equal amounts of the weak acid (HA) and its conjugate base (A⁻) coexist in solution. This is significant because <strong>pH = pKa</strong> here — the log term in the Henderson–Hasselbalch equation equals zero. It also marks the center of the buffer region, where the solution most effectively resists pH changes.</div>
+    <div class="cm-step">At the half-equivalence point:</div>
     <div class="cm-formula">moles A⁻  =  moles HA remaining</div>
 
     <div class="cm-step">Apply the Henderson–Hasselbalch equation:</div>
@@ -622,6 +665,7 @@ pH  =  pKa</div>
     cards+=makeCard('halfEq','half','3. Half-Equivalence Point',`pH = 14 − pKb = ${data.halfEqPH.toFixed(2)}`,'half-c');
     window._calcModals.halfEq={title:`Half-Equivalence Point (V = ${hV.toFixed(2)} mL)`,color:'var(--half)',
       html:`
+    <div class="cm-concept half-b">The <strong>half-equivalence point</strong> is where exactly half of the weak base has been neutralized, so equal amounts of the base (B) and its conjugate acid (BH⁺) coexist. Here, <strong>pOH = pKb</strong>, which means pH = 14 − pKb. This is the center of the buffer region where the solution best resists pH changes.</div>
     <div class="cm-step">At half-equivalence, moles BH⁺ = moles B remaining.</div>
 
     <div class="cm-step">Henderson–Hasselbalch (base form):</div>
@@ -644,6 +688,7 @@ pH  =  14  −  pKb</div>
       cards+=makeCard('bufReg','buffer','4. Buffer Region',`${bS} – ${bE} mL (pH ≈ pKa ± 1)`,'buffer-c');
       window._calcModals.bufReg={title:`Buffer Region (${bS} – ${bE} mL)`,color:'var(--buffer)',
         html:`
+    <div class="cm-concept buffer-b">The <strong>buffer region</strong> is the range of titrant volumes where the solution contains significant amounts of both the weak acid and its conjugate base. A buffer resists pH changes when small amounts of acid or base are added. The pH changes slowly here, creating the gradual slope on the curve. The effective buffer range is approximately <strong>pKa ± 1</strong>, and the Henderson–Hasselbalch equation governs pH throughout this zone.</div>
     <div class="cm-step">In the buffer region, both HA and its conjugate base A⁻ are present in significant amounts. The pH is governed by the Henderson–Hasselbalch equation:</div>
     <div class="cm-formula">pH  =  pKa  +  log₁₀( [A⁻] / [HA] )</div>
 
@@ -678,6 +723,7 @@ pH  =  ${pKa}</div>
       cards+=makeCard('bufReg','buffer','4. Buffer Region',`${bS} – ${bE} mL (pOH ≈ pKb ± 1)`,'buffer-c');
       window._calcModals.bufReg={title:`Buffer Region (${bS} – ${bE} mL)`,color:'var(--buffer)',
         html:`
+    <div class="cm-concept buffer-b">The <strong>buffer region</strong> is the range where the solution contains significant amounts of both the weak base and its conjugate acid. The solution resists pH changes here, creating the gradual slope on the curve. The effective range is approximately <strong>pOH = pKb ± 1</strong>, and pH changes slowly as titrant is added.</div>
     <div class="cm-step">Both B and BH⁺ are present. Henderson–Hasselbalch (base form):</div>
     <div class="cm-formula">pOH  =  pKb  +  log₁₀( [BH⁺] / [B] )
 
@@ -700,6 +746,7 @@ mol B    =  n(analyte) − mol BH⁺</div>
     cards+=makeCard('eqPt','equiv',`${sn}. Equivalence Point`,`pH = ${data.eqPH.toFixed(2)}`,'equiv-c');
     window._calcModals.eqPt={title:`Equivalence Point (V = ${Veq.toFixed(2)} mL)`,color:'var(--equiv)',
       html:`
+    <div class="cm-concept equiv-b">The <strong>equivalence point</strong> is where all of the analyte has been completely neutralized by the titrant. For a weak acid titrated with a strong base, the solution at equivalence contains only the conjugate base (A⁻), which hydrolyzes in water to produce OH⁻ — making the equivalence pH <strong>greater than 7</strong>. This is why the pH at equivalence is basic, not neutral.</div>
     <div class="cm-step">At equivalence, all HA has been converted to A⁻ (conjugate base). The conjugate base hydrolyzes in water:</div>
     <div class="cm-formula">A⁻  +  H₂O  ⇌  HA  +  OH⁻</div>
 
@@ -736,6 +783,7 @@ pH  =  14  −  pOH</div>
     cards+=makeCard('eqPt','equiv',`${sn}. Equivalence Point`,`pH = ${data.eqPH.toFixed(2)}`,'equiv-c');
     window._calcModals.eqPt={title:`Equivalence Point (V = ${Veq.toFixed(2)} mL)`,color:'var(--equiv)',
       html:`
+    <div class="cm-concept equiv-b">The <strong>equivalence point</strong> is where all of the analyte has been completely neutralized. For a weak base titrated with a strong acid, the solution at equivalence contains only the conjugate acid (BH⁺), which donates H⁺ to water — making the equivalence pH <strong>less than 7</strong>. This is why the pH at equivalence is acidic, not neutral.</div>
     <div class="cm-step">All B has been converted to BH⁺ (conjugate acid):</div>
     <div class="cm-formula">BH⁺  ⇌  B  +  H⁺</div>
 
@@ -761,6 +809,7 @@ pH  =  −log₁₀(x)</div>
     cards+=makeCard('eqPt','equiv','3. Equivalence Point',`pH = 7.00`,'equiv-c');
     window._calcModals.eqPt={title:`Equivalence Point (V = ${Veq.toFixed(2)} mL)`,color:'var(--equiv)',
       html:`
+    <div class="cm-concept equiv-b">The <strong>equivalence point</strong> is where all of the analyte has been completely neutralized. For a strong acid + strong base titration, the products are only water and a neutral salt — no hydrolysis occurs. This is why the equivalence pH is exactly <strong>7.00</strong> at 25 °C.</div>
     <div class="cm-step">Strong acid + strong base produces water and a neutral salt. No hydrolysis occurs:</div>
     <div class="cm-formula">H⁺  +  OH⁻  →  H₂O
 
@@ -772,6 +821,7 @@ At equivalence:  [H⁺]  =  [OH⁻]  =  √Kw</div>
     cards+=makeCard('eqPt','equiv','3. Equivalence Point',`pH = ${data.eqPH.toFixed(2)}`,'equiv-c');
     window._calcModals.eqPt={title:`Equivalence Point (V = ${Veq.toFixed(2)} mL)`,color:'var(--equiv)',
       html:`
+    <div class="cm-concept equiv-b">The <strong>equivalence point</strong> is where all of the strong acid has been neutralized by the weak base titrant. The resulting solution contains the conjugate acid (BH⁺) of the weak base, which donates H⁺ to water — making the equivalence pH <strong>less than 7</strong>.</div>
     <div class="cm-step">All H⁺ neutralized → forms BH⁺ (conjugate acid of the weak base titrant):</div>
     <div class="cm-formula">[BH⁺]  =  ${sci(Cac)} M
 
@@ -787,6 +837,7 @@ pH  =  −log₁₀(x)</div>
     cards+=makeCard('eqPt','equiv','3. Equivalence Point',`pH = ${data.eqPH.toFixed(2)}`,'equiv-c');
     window._calcModals.eqPt={title:`Equivalence Point (V = ${Veq.toFixed(2)} mL)`,color:'var(--equiv)',
       html:`
+    <div class="cm-concept equiv-b">The <strong>equivalence point</strong> is where all of the strong base has been neutralized by the weak acid titrant. The resulting solution contains the conjugate base (A⁻) of the weak acid, which hydrolyzes in water to produce OH⁻ — making the equivalence pH <strong>greater than 7</strong>.</div>
     <div class="cm-step">All OH⁻ neutralized → forms A⁻ (conjugate base of the weak acid titrant):</div>
     <div class="cm-formula">[A⁻]  =  ${sci(Cbc)} M
 
@@ -808,6 +859,7 @@ pH  = 14 − pOH</div>
     cards+=makeCard('postEq','excess',`${sn2}. Post-Equivalence`,`pH = ${pPt.y.toFixed(2)} at ${pV.toFixed(1)} mL`,'base-c');
     window._calcModals.postEq={title:`Post-Equivalence (V = ${pV.toFixed(1)} mL)`,color:'var(--base)',
       html:`
+    <div class="cm-concept base-b">The <strong>post-equivalence region</strong> is everything beyond the equivalence point. Here, the analyte has been fully neutralized and any additional titrant is now in excess. For a strong base titrant, the excess OH⁻ directly controls the pH, causing it to rise steeply. The curve flattens out at high pH as the excess base is diluted by further additions.</div>
     <div class="cm-step">Beyond the equivalence point, excess strong base is added. The excess OH⁻ dominates the pH:</div>
     <div class="cm-formula">mol OH⁻(excess) = C(titrant) × V(titrant)${nTf>1?' × '+nTf:''}  −  eq(analyte)
 
@@ -834,6 +886,7 @@ pH   =  14  −  pOH</div>
     cards+=makeCard('postEq','excess',`${sn2}. Post-Equivalence`,`pH = ${pPt.y.toFixed(2)} at ${pV.toFixed(1)} mL`,'base-c');
     window._calcModals.postEq={title:`Post-Equivalence (V = ${pV.toFixed(1)} mL)`,color:'var(--base)',
       html:`
+    <div class="cm-concept base-b">The <strong>post-equivalence region</strong> is everything beyond the equivalence point. The analyte has been fully neutralized, and additional titrant (strong acid) is in excess. The excess H⁺ directly controls the pH, causing it to drop steeply. The curve flattens at low pH as the excess acid is diluted.</div>
     <div class="cm-step">Excess strong acid dominates the pH:</div>
     <div class="cm-formula">mol H⁺(excess)  =  ${sci(exM)} mol
 
@@ -846,6 +899,7 @@ pH  =  −log₁₀( ${sci(exM/tVp)} )</div>
     cards+=makeCard('postEq','excess',`${sn2}. Post-Equivalence`,`pH ≈ ${pPt.y.toFixed(2)} at ${pV.toFixed(1)} mL`,'base-c');
     window._calcModals.postEq={title:`Post-Equivalence (V = ${pV.toFixed(1)} mL)`,color:'var(--base)',
       html:`
+    <div class="cm-concept base-b">The <strong>post-equivalence region</strong> is everything beyond the equivalence point. Here, excess weak base titrant is being added. Unlike a strong base, the excess weak base only partially ionizes, so the pH rises more gradually and doesn't reach as high a value.</div>
     <div class="cm-step">Excess weak base — pH from Kb equilibrium:</div>
     <div class="cm-formula">[B](excess)  =  ${sci(exM/tVp)} M
 
@@ -860,6 +914,7 @@ pH  =  14  −  pOH</div>
     cards+=makeCard('postEq','excess',`${sn2}. Post-Equivalence`,`pH ≈ ${pPt.y.toFixed(2)} at ${pV.toFixed(1)} mL`,'base-c');
     window._calcModals.postEq={title:`Post-Equivalence (V = ${pV.toFixed(1)} mL)`,color:'var(--base)',
       html:`
+    <div class="cm-concept base-b">The <strong>post-equivalence region</strong> is everything beyond the equivalence point. Here, excess weak acid titrant is being added. Unlike a strong acid, the excess weak acid only partially ionizes, so the pH drops more gradually and doesn't reach as low a value.</div>
     <div class="cm-step">Excess weak acid — pH from Ka equilibrium:</div>
     <div class="cm-formula">[HA](excess)  =  ${sci(exM/tVp)} M
 
